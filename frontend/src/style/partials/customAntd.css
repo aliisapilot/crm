@@ -74,9 +74,8 @@ h6 {
   cursor: pointer;
 }
 
-.ant-menu-item {
-  height: 36px !important;
-}
+/* .ant-menu-item height is now controlled by navigation.css (height: auto + padding: 16px)
+   so items breathe vertically without a hard pixel lock. */
 @media (max-width: 768px) {
   .tabContent .ant-tabs-right > .ant-tabs-content-holder > .ant-tabs-content > .ant-tabs-tabpane {
     padding-right: 0;

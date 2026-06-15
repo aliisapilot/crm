@@ -1,209 +1,152 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Button, Drawer, Layout, Menu } from 'antd';
+import { MenuOutlined } from '@ant-design/icons';
 
 import { useAppContext } from '@/context/appContext';
-
 import useLanguage from '@/locale/useLanguage';
+import useResponsive from '@/hooks/useResponsive';
+
 import logoIcon from '@/style/images/logo-icon.svg';
 import logoText from '@/style/images/logo-text.svg';
 
-import useResponsive from '@/hooks/useResponsive';
-
-import {
-  SettingOutlined,
-  CustomerServiceOutlined,
-  ContainerOutlined,
-  FileSyncOutlined,
-  DashboardOutlined,
-  TagOutlined,
-  TagsOutlined,
-  UserOutlined,
-  CreditCardOutlined,
-  MenuOutlined,
-  FileOutlined,
-  ShopOutlined,
-  FilterOutlined,
-  WalletOutlined,
-  ReconciliationOutlined,
-} from '@ant-design/icons';
+import NAV_ITEMS from './navigationConfig.jsx';
 
 const { Sider } = Layout;
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Derive the active menu key from the current pathname.
+ *
+ * Rules:
+ *   '/'             → 'dashboard'
+ *   '/payment/mode' → 'paymentMode'   (check exact paths before prefix match)
+ *   '/invoice/...'  → 'invoice'
+ */
+function getActiveKey(pathname) {
+  if (pathname === '/') return 'dashboard';
+
+  // Exact match first (handles multi-segment paths like /payment/mode)
+  const exact = NAV_ITEMS.find((item) => item.path === pathname);
+  if (exact) return exact.key;
+
+  // Prefix match (handles nested routes like /invoice/read/:id)
+  const prefix = NAV_ITEMS.find(
+    (item) => item.path !== '/' && pathname.startsWith(item.path)
+  );
+  return prefix ? prefix.key : '';
+}
+
+// ---------------------------------------------------------------------------
+// Public export
+// ---------------------------------------------------------------------------
+
 export default function Navigation() {
   const { isMobile } = useResponsive();
-
   return isMobile ? <MobileSidebar /> : <Sidebar collapsible={false} />;
 }
 
+// ---------------------------------------------------------------------------
+// Sidebar (desktop)
+// ---------------------------------------------------------------------------
+
 function Sidebar({ collapsible, isMobile = false }) {
-  let location = useLocation();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const translate = useLanguage();
 
   const { state: stateApp, appContextAction } = useAppContext();
   const { isNavMenuClose } = stateApp;
   const { navMenu } = appContextAction;
-  const [showLogoApp, setLogoApp] = useState(isNavMenuClose);
-  const [currentPath, setCurrentPath] = useState(location.pathname.slice(1));
 
-  const translate = useLanguage();
-  const navigate = useNavigate();
-
-  const items = [
-    {
-      key: 'dashboard',
-      icon: <DashboardOutlined />,
-      label: <Link to={'/'}>{translate('dashboard')}</Link>,
-    },
-    {
-      key: 'customer',
-      icon: <CustomerServiceOutlined />,
-      label: <Link to={'/customer'}>{translate('customers')}</Link>,
-    },
-
-    {
-      key: 'invoice',
-      icon: <ContainerOutlined />,
-      label: <Link to={'/invoice'}>{translate('invoices')}</Link>,
-    },
-    {
-      key: 'quote',
-      icon: <FileSyncOutlined />,
-      label: <Link to={'/quote'}>{translate('quote')}</Link>,
-    },
-    {
-      key: 'payment',
-      icon: <CreditCardOutlined />,
-      label: <Link to={'/payment'}>{translate('payments')}</Link>,
-    },
-
-    {
-      key: 'paymentMode',
-      label: <Link to={'/payment/mode'}>{translate('payments_mode')}</Link>,
-      icon: <WalletOutlined />,
-    },
-    {
-      key: 'taxes',
-      label: <Link to={'/taxes'}>{translate('taxes')}</Link>,
-      icon: <ShopOutlined />,
-    },
-    {
-      key: 'generalSettings',
-      label: <Link to={'/settings'}>{translate('settings')}</Link>,
-      icon: <SettingOutlined />,
-    },
-    {
-      key: 'about',
-      label: <Link to={'/about'}>{translate('about')}</Link>,
-      icon: <ReconciliationOutlined />,
-    },
-  ];
-
-  useEffect(() => {
-    if (location)
-      if (currentPath !== location.pathname) {
-        if (location.pathname === '/') {
-          setCurrentPath('dashboard');
-        } else setCurrentPath(location.pathname.slice(1));
-      }
-  }, [location, currentPath]);
+  // Delay hiding the logo text until the collapse animation finishes
+  const [showLogoText, setShowLogoText] = useState(!isNavMenuClose);
 
   useEffect(() => {
     if (isNavMenuClose) {
-      setLogoApp(isNavMenuClose);
+      setShowLogoText(false);
+    } else {
+      const timer = setTimeout(() => setShowLogoText(true), 200);
+      return () => clearTimeout(timer);
     }
-    const timer = setTimeout(() => {
-      if (!isNavMenuClose) {
-        setLogoApp(isNavMenuClose);
-      }
-    }, 200);
-    return () => clearTimeout(timer);
   }, [isNavMenuClose]);
-  const onCollapse = () => {
-    navMenu.collapse();
-  };
+
+  // Build Ant Design Menu items from the config array
+  const menuItems = NAV_ITEMS.map(({ key, path, icon, labelKey }) => ({
+    key,
+    icon,
+    label: <Link to={path}>{translate(labelKey)}</Link>,
+  }));
+
+  const activeKey = getActiveKey(location.pathname);
 
   return (
     <Sider
       collapsible={collapsible}
-      collapsed={collapsible ? isNavMenuClose : collapsible}
-      onCollapse={onCollapse}
+      collapsed={collapsible ? isNavMenuClose : false}
+      onCollapse={navMenu.collapse}
       className="navigation"
       width={256}
+      theme="light"
       style={{
         overflow: 'auto',
         height: '100vh',
-
         position: isMobile ? 'absolute' : 'relative',
         bottom: '20px',
-        ...(!isMobile && {
-          // border: 'none',
-          ['left']: '20px',
-          top: '20px',
-          // borderRadius: '8px',
-        }),
+        ...(!isMobile && { left: '20px', top: '20px' }),
       }}
-      theme={'light'}
     >
-      <div
-        className="logo"
-        onClick={() => navigate('/')}
-        style={{
-          cursor: 'pointer',
-        }}
-      >
+      {/* Logo */}
+      <div className="logo" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
         <img src={logoIcon} alt="Logo" style={{ marginLeft: '-5px', height: '40px' }} />
-
-        {!showLogoApp && (
+        {showLogoText && (
           <img
             src={logoText}
             alt="Logo"
-            style={{
-              marginTop: '3px',
-              marginLeft: '10px',
-              height: '38px',
-            }}
+            style={{ marginTop: '3px', marginLeft: '10px', height: '38px' }}
           />
         )}
       </div>
+
+      {/* Menu */}
       <Menu
-        items={items}
+        items={menuItems}
         mode="inline"
-        theme={'light'}
-        selectedKeys={[currentPath]}
-        style={{
-          width: 256,
-        }}
+        theme="light"
+        selectedKeys={[activeKey]}
+        style={{ width: 256 }}
       />
     </Sider>
   );
 }
 
+// ---------------------------------------------------------------------------
+// MobileSidebar
+// ---------------------------------------------------------------------------
+
 function MobileSidebar() {
   const [visible, setVisible] = useState(false);
-  const showDrawer = () => {
-    setVisible(true);
-  };
-  const onClose = () => {
-    setVisible(false);
-  };
 
   return (
     <>
       <Button
         type="text"
         size="large"
-        onClick={showDrawer}
+        onClick={() => setVisible(true)}
         className="mobile-sidebar-btn"
-        style={{ ['marginLeft']: 25 }}
+        style={{ marginLeft: 25 }}
       >
         <MenuOutlined style={{ fontSize: 18 }} />
       </Button>
+
       <Drawer
         width={250}
-        // style={{ backgroundColor: 'rgba(255, 255, 255, 1)' }}
-        placement={'left'}
+        placement="left"
         closable={false}
-        onClose={onClose}
+        onClose={() => setVisible(false)}
         open={visible}
       >
         <Sidebar collapsible={false} isMobile={true} />
